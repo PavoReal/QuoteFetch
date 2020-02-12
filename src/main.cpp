@@ -2,63 +2,73 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include <curl/curl.h>
 
 #include "platform.h"
-
-struct StringList
-{
-	char *str;
-	StringList *next;
-};
 
 struct String
 {
 	char *str;
 	u32 length;
 };
-
-StringList*
-AllocStringList()
+struct StringArray
 {
-    StringList *result = (StringList*) malloc(sizeof(StringList));
-    *result = {};
+	String *strs;
+
+	u32 length;
+	u32 capacity;
+};
+
+inline StringArray
+CreateStringArray(u32 capacity)
+{
+	StringArray result = {};
+
+	result.capacity = capacity;
+	result.length   = 0;
+	result.strs     = (String*) malloc(sizeof(String) * capacity);
 
     return result;
 }
 
-StringList*
-GetHead(StringList *list)
+inline String
+CreateString(u32 len)
 {
-	StringList *result = list;
+	String result = {};
 
-	while (result->next)
-	{
-		result = result->next;
-	}
+	result.str    = (char*) malloc(len);
+	result.length = 0;
 
 	return result;
 }
 
-String
+inline String*
+GetArrayHead(StringArray *array)
+{
+	String *result = (array->strs + (array->length - 1));
+	return result;
+}
+
+inline String
 GetQuoteText(char *quote)
 {
 	String result = {};
 
-	const char *textMatch = "\"text\":";
+	const char *textMatch   = "\"text\":";
 	const char *authorMatch = "\"author\":";
 
 	char *start = strstr(quote, textMatch);
 	char *end   = strstr(quote, authorMatch);
 
-	result.str = start + strlen(textMatch) + 1;
+	result.str    = start + strlen(textMatch) + 1;
 	result.length = ((end - strlen(authorMatch)) - start) - 1;
 
 	return result;
 }
 
-String
+inline String
 GetQuoteAuthor(char *quote)
 {
 	String result = {};
@@ -73,26 +83,22 @@ GetQuoteAuthor(char *quote)
 	return result;
 }
 
-void
+size_t
 curlWriteback(void *ptr, size_t size, size_t nmemb, void *stream)
-{
-	StringList *newStr = AllocStringList();
-	newStr->str  = (char*) malloc(size * nmemb + 1);
-	newStr->next = 0;
+{	
+	UNUSED(size);
 
-	StringList *list = (StringList*) stream;
+	StringArray *array = (StringArray*) stream;
 
-	if (list->str)
-	{
-		StringList *head = GetHead(list);
-		head->next = newStr;
-	}
-	else
-	{
-		list->str = newStr->str;
-	}
+	assert(array->length <= (array->capacity - 1));
 
-	sprintf(newStr->str, "%.*s", (int) nmemb, (char*) ptr);
+	String *head = (array->strs + array->length++);
+	*head = CreateString(nmemb);
+
+	head->length = nmemb;
+	memcpy(head->str, (char*) ptr, nmemb);
+
+	return size * nmemb;
 }
 
 int
@@ -109,23 +115,18 @@ main(int argc, char **argv)
 		if (c)
 		{
 			quoteCount = c;
-
-			#if defined(DEBUG)
-			puts("Please note, requesting multiple quotes can take a while, we're rate limited by Adafruit...");
-			#endif
 		}
 	}
+
+	StringArray array = CreateStringArray(quoteCount);
 
 	CURL *curlHandle = curl_easy_init();
 	if (curlHandle)
 	{
-		StringList *list = AllocStringList();
-
 		CURLcode res;
 		curl_easy_setopt(curlHandle, CURLOPT_URL, "https://www.adafruit.com/api/quotes.php?random=1");
 	    curl_easy_setopt(curlHandle, CURLOPT_WRITEFUNCTION, curlWriteback);
-	    curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, list);
-		//curl_easy_setopt(curlHandle, CURLOPT_VERBOSE, 1L);
+	    curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, &array);
 
 	    for (u32 i = 0; i < quoteCount; ++i)
 	    {
@@ -133,14 +134,11 @@ main(int argc, char **argv)
 
 			if (res != CURLE_OK)
 			{
-				#if defined(DEBUG)
-				fprintf(stderr, "Curl perform failed in some way...\n");
-				#endif
-
+				fprintf(stderr, "Curl perform failed in some way, w/ code %u...\n", res);
 				exit(1);
 			}
 
-			StringList *head = GetHead(list);
+			String *head = GetArrayHead(&array);
 
 			String text   = GetQuoteText(head->str);
 			String author = GetQuoteAuthor(head->str);
@@ -148,20 +146,6 @@ main(int argc, char **argv)
 			printf("\"%.*s\" -- %.*s\n", (int) text.length, text.str, (int) author.length, author.str);
 	    }
 	    
-		#if 0
-		else
-		{
-			StringList *index = list;
-
-			while (index)
-			{
-				puts(index->str);
-
-				index = index->next;
-			}
-		}
-		#endif
-
 		curl_easy_cleanup(curlHandle);
 	}
 

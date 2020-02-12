@@ -1,11 +1,11 @@
 #! /bin/bash
 
-CXX=g++
+CXX=clang++
 
-CXX_DEFS=""
+CXX_DEFS="-DDEBUG"
 
 CXX_LIBS="-lcurl"
-CXX_FLAGS="-Wall -Wextra -Wnoexcept -fno-rtti -O3 $CXX_DEFS"
+CXX_FLAGS="-Wall -Wextra -Wnoexcept -fno-rtti -O0 -g $CXX_DEFS"
 
 shopt -s nullglob
 mkdir -p build/
