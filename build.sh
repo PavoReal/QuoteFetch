@@ -2,10 +2,10 @@
 
 CXX=clang++
 
-CXX_DEFS="-DDEBUG"
+CXX_DEFS=""
 
 CXX_LIBS="-lcurl"
-CXX_FLAGS="-Wall -Wextra -Wnoexcept -fno-rtti -O0 -g $CXX_DEFS"
+CXX_FLAGS="-Wall -Wextra -fno-exceptions -fno-rtti -O3 -flto $CXX_DEFS"
 
 shopt -s nullglob
 mkdir -p build/
