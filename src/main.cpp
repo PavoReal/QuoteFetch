@@ -74,11 +74,13 @@ GetQuoteAuthor(char *quote)
 	String result = {};
 
 	const char *authorMatch = "\"author\":";
+	const char *endMatch    = "}]";
 
 	char *start = strstr(quote, authorMatch);
+	char *end   = strstr(start, endMatch);
 
 	result.str    = start + strlen(authorMatch) + 1;
-	result.length = strlen(result.str) - 3;
+	result.length = end - result.str - 1;
 
 	return result;
 }
